@@ -113,12 +113,19 @@ canvas{
   box-shadow:inset 0 0 32px rgba(74,34,4,.44),0 9px 18px rgba(0,0,0,.26)
 }
 .winner{
-  position:absolute;inset:10px;display:none;align-items:center;justify-content:center;border-radius:12px;background:rgba(3,8,16,.7);backdrop-filter:blur(5px)
+  display:none;margin-top:9px;padding:0;
 }
-.winner.show{display:flex}
-.win-card{width:min(390px,86%);padding:24px;text-align:center;border-radius:20px;background:linear-gradient(145deg,#192b49,#0c1728);border:1px solid rgba(255,255,255,.12)}
-.win-icon{font-size:52px}.win-title{font-size:27px;font-weight:1000;margin-top:6px}.win-desc{font-size:12px;color:#bcc9d8;margin:6px 0 15px}
-.win-card button{height:42px;padding:0 20px;border-radius:11px;background:linear-gradient(90deg,#ffc857,#ff9f43);color:#2a1604}
+.winner.show{display:block}
+.win-card{
+  width:100%;padding:12px 14px;display:grid;grid-template-columns:1fr auto;
+  align-items:center;gap:8px 14px;text-align:left;border-radius:15px;
+  background:linear-gradient(145deg,#192b49,#0c1728);
+  border:1px solid rgba(255,211,78,.48);box-shadow:0 10px 24px rgba(0,0,0,.28)
+}
+.victory-gentleman{display:none !important}
+.win-title{font-size:20px;font-weight:1000;margin:0;color:#ffe078}
+.win-desc{font-size:12px;line-height:1.5;color:#d7e3ef;margin:2px 0 0;grid-column:1}
+.win-card button{grid-column:2;grid-row:1 / span 2;height:38px;padding:0 16px;border-radius:10px;background:linear-gradient(90deg,#ffc857,#ff9f43);color:#2a1604}
 
 .start-modal{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(2,7,14,.8);backdrop-filter:blur(9px)}
 .start-modal.hidden{display:none}
@@ -447,7 +454,8 @@ canvas{
       </div>
       <div class="board-shell">
         <canvas id="board" width="1100" height="1100"></canvas>
-        <div class="winner" id="winner"><div class="win-card">
+      </div>
+      <div class="winner" id="winner"><div class="win-card">
           <div class="victory-gentleman" id="victoryGentleman" aria-hidden="true">
             <div class="vg-spark s1">✦</div><div class="vg-spark s2">✧</div><div class="vg-spark s3">✦</div>
             <div class="vg-hair"></div><div class="vg-head"></div>
@@ -460,7 +468,6 @@ canvas{
           <div class="win-desc" id="winDesc">승리했습니다!</div>
           <button id="winnerNew">새 게임 시작</button>
         </div></div>
-      </div>
     </section>
 
     <section class="panel team-panel white" id="whitePanel">
@@ -738,7 +745,12 @@ function finishMove(x,y,p){
   board.set(key(x,y),p);moves.push({x,y,player:p});const w=getWin(x,y,p);
   if(w.length>0){winning=w;gameOver=true;stopTimer();draw();renderHistory();updateUI(false);$("victoryGentleman").classList.toggle("white-win",p==="white");
     $("winTitle").textContent=`${nameOf(p)} 승리!`;
-    $("winDesc").textContent=gameMode==="ai"&&p===aiPlayer?"AI가 승리했습니다. 다시 도전해 보세요!":"멋진 승리입니다!";
+    const first=w[0], last=w[w.length-1];
+    const dx=Math.sign(last[0]-first[0]), dy=Math.sign(last[1]-first[1]);
+    const direction=dx===0?"세로":dy===0?"가로":dx===dy?"오른쪽 위 대각선":"오른쪽 아래 대각선";
+    const coords=w.map(([wx,wy])=>`(${wx}, ${wy})`).join(" → ");
+    const rule=w.length>=5?`${w.length}개의 돌이 연속으로 연결되었습니다.`:"열린 끝이 있는 4개의 돌이 연속으로 연결되었습니다.";
+    $("winDesc").textContent=`${direction} 승리 · ${rule}  승리 좌표: ${coords}`;
     $("winner").classList.add("show");setMsg(p,`${nameOf(p)} 승리!`,"success");return true}
   current=p==="black"?"white":"black";draw();renderHistory();updateUI();return false;
 }
