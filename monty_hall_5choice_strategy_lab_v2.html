@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <title>몬티홀과 선택 전략 확률 실험실</title>
+  <style>
+    :root{
+      --bg:#f4f7fb;
+      --card:#ffffff;
+      --ink:#1f2937;
+      --muted:#6b7280;
+      --line:#dbe3ef;
+      --primary:#2563eb;
+      --primary-dark:#1d4ed8;
+      --good:#15803d;
+      --bad:#b91c1c;
+      --gold:#f59e0b;
+      --shadow:0 12px 32px rgba(31,41,55,.10);
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:"Pretendard","Noto Sans KR",Arial,sans-serif;
+      color:var(--ink);
+      background:linear-gradient(135deg,#eef4ff 0%,#f8fafc 55%,#eefbf5 100%);
+      min-height:100vh;
+    }
+    header{
+      padding:28px 20px 18px;
+      text-align:center;
+    }
+    h1{margin:0 0 8px;font-size:clamp(26px,4vw,42px)}
+    header p{margin:0;color:var(--muted)}
+    .tabs{
+      display:flex;
+      justify-content:center;
+      gap:10px;
+      padding:0 16px 20px;
+      flex-wrap:wrap;
+    }
+    .tab-btn{
+      border:1px solid var(--line);
+      background:#fff;
+      color:var(--ink);
+      padding:12px 18px;
+      border-radius:999px;
+      font-weight:700;
+      cursor:pointer;
+    }
+    .tab-btn.active{
+      background:var(--primary);
+      color:#fff;
+      border-color:var(--primary);
+    }
+    main{max-width:1180px;margin:0 auto;padding:0 18px 40px}
+    .panel{display:none}
+    .panel.active{display:block}
+    .layout{
+      display:grid;
+      grid-template-columns:1.6fr .9fr;
+      gap:20px;
+      align-items:start;
+    }
+    .card{
+      background:rgba(255,255,255,.96);
+      border:1px solid rgba(219,227,239,.9);
+      border-radius:22px;
+      box-shadow:var(--shadow);
+      padding:22px;
+    }
+    .card h2,.card h3{margin-top:0}
+    .controls{
+      display:grid;
+      gap:14px;
+    }
+    label{
+      display:grid;
+      gap:7px;
+      font-weight:700;
+    }
+    input[type="range"]{width:100%}
+    select,button,input[type="number"]{
+      font:inherit;
+    }
+    select,input[type="number"]{
+      width:100%;
+      padding:11px 12px;
+      border:1px solid var(--line);
+      border-radius:12px;
+      background:#fff;
+    }
+    .btn{
+      border:0;
+      border-radius:13px;
+      padding:12px 15px;
+      font-weight:800;
+      cursor:pointer;
+      background:var(--primary);
+      color:#fff;
+    }
+    .btn:hover{background:var(--primary-dark)}
+    .btn.secondary{background:#e8eef8;color:#1e3a8a}
+    .btn.good{background:var(--good)}
+    .btn.warn{background:var(--gold);color:#3a2500}
+    .btn.danger{background:var(--bad)}
+    .btn:disabled{opacity:.45;cursor:not-allowed}
+    .button-row{display:flex;gap:10px;flex-wrap:wrap}
+    .doors{
+      min-height:340px;
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(105px,1fr));
+      gap:16px;
+      align-content:start;
+    }
+    .door{
+      position:relative;
+      height:190px;
+      border:none;
+      background:transparent;
+      cursor:pointer;
+      perspective:900px;
+    }
+    .door-inner{
+      position:absolute;
+      inset:0;
+      transform-style:preserve-3d;
+      transition:transform .55s;
+    }
+    .door.open .door-inner{transform:rotateY(-180deg)}
+    .door-face,.door-back{
+      position:absolute;
+      inset:0;
+      border-radius:12px 12px 4px 4px;
+      backface-visibility:hidden;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      border:5px solid #74431d;
+      box-shadow:inset 0 0 0 5px rgba(255,255,255,.12),0 10px 18px rgba(0,0,0,.12);
+    }
+    .door-face{
+      background:linear-gradient(90deg,#955426,#c97b3d 45%,#9a5727);
+      color:#fff7ed;
+      font-size:34px;
+      font-weight:900;
+    }
+    .door-face::after{
+      content:"";
+      position:absolute;
+      width:10px;height:10px;border-radius:50%;
+      background:#f8d477;
+      right:13px;
+    }
+    .door-back{
+      transform:rotateY(180deg);
+      background:#f8fafc;
+      font-size:54px;
+    }
+    .door.selected .door-face{outline:5px solid var(--primary);outline-offset:3px}
+    .door.host-open .door-back{background:#fff1f2}
+    .status{
+      margin:14px 0 0;
+      padding:14px 16px;
+      border-radius:14px;
+      background:#f1f5f9;
+      line-height:1.6;
+      min-height:58px;
+    }
+    .stats{
+      display:grid;
+      grid-template-columns:repeat(2,1fr);
+      gap:10px;
+      margin-top:14px;
+    }
+    .stat{
+      background:#f8fafc;
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:14px;
+    }
+    .stat strong{display:block;font-size:24px;margin-top:5px}
+    .formula{
+      background:#eff6ff;
+      border:1px solid #bfdbfe;
+      color:#1e3a8a;
+      padding:14px;
+      border-radius:14px;
+      line-height:1.65;
+    }
+    .strategy-grid{
+      display:grid;
+      grid-template-columns:repeat(5,1fr);
+      gap:12px;
+      margin:16px 0;
+    }
+    .choice{
+      min-height:104px;
+      background:#fff;
+      border:2px solid var(--line);
+      border-radius:16px;
+      font-size:28px;
+      font-weight:900;
+      cursor:pointer;
+    }
+    .choice.initial{border-color:var(--primary);background:#eff6ff}
+    .choice.eliminated{opacity:.38;text-decoration:line-through;background:#fee2e2}
+    .choice.correct{background:#dcfce7;border-color:var(--good)}
+    .choice.chosen{box-shadow:0 0 0 4px rgba(37,99,235,.18)}
+    .choice.ignored{background:#f3f4f6;border-style:dashed;color:#6b7280}
+    .choice.readable{background:#fffdf2}
+    .choice.final-pick{outline:4px solid var(--primary);outline-offset:2px}
+    .question-paper{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;margin:12px 0;line-height:1.65}
+    .question-paper .stem{font-weight:800;margin-bottom:10px}
+    .choice small{display:block;font-size:12px;font-weight:600;margin-top:7px}
+    .mini-chart{display:grid;gap:10px;margin-top:16px}
+    .bar-row{display:grid;grid-template-columns:110px 1fr 70px;align-items:center;gap:10px}
+    .bar-track{height:22px;background:#e5e7eb;border-radius:999px;overflow:hidden}
+    .bar{height:100%;background:var(--primary);width:0%;transition:width .3s}
+    .note{
+      color:var(--muted);
+      font-size:14px;
+      line-height:1.6;
+    }
+    .caution{
+      margin-top:18px;
+      padding:16px 18px;
+      border-radius:16px;
+      background:#fff7ed;
+      border:1px solid #fdba74;
+      color:#7c2d12;
+      line-height:1.7;
+    }
+    .caution strong{display:block;margin-bottom:5px;color:#9a3412}
+    .quiz-box{
+      border:1px dashed #94a3b8;
+      border-radius:16px;
+      padding:16px;
+      margin-top:18px;
+      background:#fcfcff;
+    }
+    @media(max-width:850px){
+      .layout{grid-template-columns:1fr}
+      .strategy-grid{grid-template-columns:repeat(2,1fr)}
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>몬티홀과 선택 전략 확률 실험실</h1>
+    <p>직접 문을 열고, 선택을 바꾸며, 반복 실험으로 조건부확률을 확인해 보세요.</p>
+  </header>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="monty">1부. 몬티홀 실험</button>
+    <button class="tab-btn" data-tab="exam">2부. 5지선다 전략</button>
+  </div>
+
+  <main>
+    <section id="monty" class="panel active">
+      <div class="layout">
+        <div class="card">
+          <h2>문을 직접 선택해 보세요</h2>
+          <div id="doors" class="doors"></div>
+          <div id="montyStatus" class="status">먼저 문 하나를 선택하세요.</div>
+          <div class="button-row" style="margin-top:14px">
+            <button id="hostOpenBtn" class="btn warn" disabled>진행자가 염소 문 열기</button>
+            <button id="stayBtn" class="btn secondary" disabled>처음 선택 유지</button>
+            <button id="switchBtn" class="btn good" disabled>다른 문으로 바꾸기</button>
+            <button id="newRoundBtn" class="btn">새 게임</button>
+          </div>
+
+          <div class="stats">
+            <div class="stat">유지 전략 승률<strong id="stayRate">0%</strong><span id="stayCount">0승 / 0회</span></div>
+            <div class="stat">변경 전략 승률<strong id="switchRate">0%</strong><span id="switchCount">0승 / 0회</span></div>
+          </div>
+        </div>
+
+        <aside class="card controls">
+          <h3>실험 설정</h3>
+          <label>
+            문 개수: <span id="doorCountLabel">3개</span>
+            <input id="doorCount" type="range" min="3" max="12" value="3" />
+          </label>
+          <label>
+            진행자가 남겨 둘 닫힌 문 수
+            <select id="remainingDoors">
+              <option value="2">2개</option>
+            </select>
+          </label>
+          <div id="probabilityBox" class="formula"></div>
+          <button id="simulateBtn" class="btn">10,000회 자동 실험</button>
+          <button id="resetStatsBtn" class="btn danger">통계 초기화</button>
+          <p class="note">
+            기본 몬티홀에서는 진행자가 정답 위치를 알고 있으며, 참가자가 고르지 않은 문 중 염소 문만 엽니다.
+            진행자가 마지막에 닫힌 문을 2개만 남기면, 바꾸기 전략의 이론적 성공 확률은
+            <b>(문 개수 - 1) / 문 개수</b>입니다.
+          </p>
+        </aside>
+      </div>
+    </section>
+
+    <section id="exam" class="panel">
+      <div class="layout">
+        <div class="card">
+          <h2>5지선다 시험 전략 게임</h2>
+          <p>학생이 보자마자 헷갈리는 보기 일부는 처음부터 배제하고, 남은 보기만 검토해 오답을 지운 뒤 최종 선택을 비교합니다.<br>처음에 <i>n</i>개의 보기를 제외한 뒤, 남은 5 − <i>n</i>개의 보기 중에서 <i>m</i>개의 오답을 제거합니다.<br>과연 확률이 \( \frac{1}{5} \)일지 확인해봅시다.</p>
+
+          <div class="question-paper">
+            <div class="stem" id="mockQuestion">다음 중 수학적 설명으로 가장 적절한 것을 고르시오.</div>
+            <div class="note">회색 점선 보기는 “처음부터 보지 않은 보기”, 노란 보기는 실제로 검토한 보기입니다.</div>
+          </div>
+
+          <div id="choices" class="strategy-grid"></div>
+          <div id="examStatus" class="status">오른쪽에서 전략을 설정하고 ‘새 문제’를 누르세요.</div>
+
+          <div class="button-row" style="margin-top:14px">
+            <button id="examNewBtn" class="btn">새 문제</button>
+            <button id="eliminateBtn" class="btn warn" disabled>확실한 오답 지우기</button>
+            <button id="keepOneBtn" class="btn secondary" disabled>검토 후 남은 보기 유지</button>
+            <button id="changeBtn" class="btn good" disabled>처음 배제한 보기 중 하나 선택</button>
+          </div>
+
+          <div class="mini-chart">
+            <div class="bar-row"><span>검토 보기 유지</span><div class="bar-track"><div id="keepBar" class="bar"></div></div><b id="keepPct">0%</b></div>
+            <div class="bar-row"><span>배제 보기 선택</span><div class="bar-track"><div id="changeBar" class="bar"></div></div><b id="changePct">0%</b></div>
+          </div>
+        </div>
+
+        <aside class="card controls">
+          <h3>시험 전략 설정</h3>
+          <label>
+            처음부터 읽지 않을 긴 보기 수 <i>n<i>
+            <select id="ignoredCount">
+              <option value="1">1개</option>
+              <option value="2" selected>2개</option>
+              <option value="3">3개</option>
+              <option value="4">4개</option>
+            </select>
+          </label>
+          <label>
+            검토한 보기 중 지울 오답 수 <i>m<i>
+            <select id="eliminateCount"></select>
+          </label>
+          <div id="examProbabilityBox" class="formula"></div>
+          <label>
+            자동 실험 횟수
+            <select id="examTrials">
+              <option value="1000">1,000회</option>
+              <option value="10000" selected>10,000회</option>
+              <option value="100000">100,000회</option>
+            </select>
+          </label>
+          <button id="examSimBtn" class="btn">자동 실험 실행</button>
+          <button id="examResetBtn" class="btn danger">실험 통계 초기화</button>
+          <p class="note">
+            규칙: <i>n<i>개의 보기는 처음부터 배제합니다. 나머지 5-<i>n<i>개를 검토해, 정답은 지우지 않는다는 가정 아래 m개의 오답을 제거합니다.
+            그 뒤 검토 후 살아남은 보기 중 하나를 유지하거나, 처음 배제했던 <i>n<i>개 중 하나를 새로 선택합니다. 여러 개가 남으면 각 집합 안에서는 무작위로 고릅니다.
+          </p>
+          <div class="caution">
+            <strong>⚠ 해석할 때 주의하세요</strong>
+            이 실험은 “검토한 보기에서 정답은 지우지 않고 오답만 정확히 <i>m<i>개 제거한다”는 이상적인 가정을 사용합니다.
+            실제 시험에서는 학생이 보기에 대해 조금이라도 알고 있는 정도, 보기 길이, 오답 제거의 정확성, 찍는 습관 등이 정답률에 영향을 줍니다.
+            따라서 이 결과는 실제 성적을 정확히 예측하는 공식이 아니라, 선택 전략의 구조를 비교하기 위한 확률 모형입니다.
+          </div>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+<script>
+  const $ = (s) => document.querySelector(s);
+  const $$ = (s) => [...document.querySelectorAll(s)];
+  const randInt = (n) => Math.floor(Math.random() * n);
+
+  // 탭
+  $$('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      $$('.tab-btn').forEach(b => b.classList.remove('active'));
+      $$('.panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      $('#' + btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  // ---------------- 몬티홀 ----------------
+  let doorCount = 3;
+  let prizeDoor = 0;
+  let selectedDoor = null;
+  let openedDoors = [];
+  let roundFinished = false;
+  let stayWins = 0, stayTrials = 0, switchWins = 0, switchTrials = 0;
+
+  function buildRemainingOptions(){
+    const select = $('#remainingDoors');
+    const current = Math.min(Number(select.value || 2), doorCount - 1);
+    select.innerHTML = '';
+    for(let k=2;k<=Math.min(5,doorCount-1);k++){
+      const o=document.createElement('option');
+      o.value=k; o.textContent=k+'개';
+      if(k===current) o.selected=true;
+      select.appendChild(o);
+    }
+    updateProbability();
+  }
+
+  function updateProbability(){
+    const r = Number($('#remainingDoors').value || 2);
+    let stay = 1/doorCount;
+    let switchProb;
+    if(r === 2){
+      switchProb = (doorCount-1)/doorCount;
+      $('#probabilityBox').innerHTML =
+        `처음 선택 유지: <b>${(stay*100).toFixed(1)}%</b><br>`+
+        `남은 다른 문으로 변경: <b>${(switchProb*100).toFixed(1)}%</b>`;
+    }else{
+      switchProb = ((doorCount-1)/doorCount)/(r-1);
+      $('#probabilityBox').innerHTML =
+        `처음 선택 유지: <b>${(stay*100).toFixed(1)}%</b><br>`+
+        `진행자가 ${r}개를 남긴 뒤, 다른 문 하나를 무작위 선택: <b>${(switchProb*100).toFixed(1)}%</b>`;
+    }
+  }
+
+  function newMontyRound(){
+    doorCount = Number($('#doorCount').value);
+    prizeDoor = randInt(doorCount);
+    selectedDoor = null;
+    openedDoors = [];
+    roundFinished = false;
+    $('#doors').innerHTML = '';
+    for(let i=0;i<doorCount;i++){
+      const d=document.createElement('button');
+      d.className='door';
+      d.dataset.index=i;
+      d.innerHTML=`<div class="door-inner">
+        <div class="door-face">${i+1}</div>
+        <div class="door-back">?</div>
+      </div>`;
+      d.addEventListener('click',()=>selectDoor(i));
+      $('#doors').appendChild(d);
+    }
+    $('#montyStatus').textContent='먼저 문 하나를 선택하세요.';
+    $('#hostOpenBtn').disabled=true;
+    $('#stayBtn').disabled=true;
+    $('#switchBtn').disabled=true;
+  }
+
+  function selectDoor(i){
+    if(roundFinished || openedDoors.length) return;
+    selectedDoor=i;
+    $$('.door').forEach(d=>d.classList.toggle('selected',Number(d.dataset.index)===i));
+    $('#montyStatus').textContent=`${i+1}번 문을 선택했습니다. 이제 진행자가 염소 문을 엽니다.`;
+    $('#hostOpenBtn').disabled=false;
+  }
+
+  function hostOpen(){
+    if(selectedDoor===null) return;
+    const remainCount = Number($('#remainingDoors').value);
+    const candidates=[];
+    for(let i=0;i<doorCount;i++){
+      if(i!==selectedDoor && i!==prizeDoor) candidates.push(i);
+    }
+    for(let i=candidates.length-1;i>0;i--){
+      const j=randInt(i+1); [candidates[i],candidates[j]]=[candidates[j],candidates[i]];
+    }
+    const toOpen = doorCount-remainCount;
+    openedDoors=candidates.slice(0,toOpen);
+    openedDoors.forEach(i=>{
+      const d=$(`.door[data-index="${i}"]`);
+      d.classList.add('open','host-open');
+      d.querySelector('.door-back').textContent='🐐';
+    });
+    $('#hostOpenBtn').disabled=true;
+    $('#stayBtn').disabled=false;
+    $('#switchBtn').disabled=false;
+    $('#montyStatus').textContent=`진행자가 염소 문 ${toOpen}개를 열었습니다. 처음 선택을 유지하거나, 남은 다른 문으로 바꾸세요.`;
+  }
+
+  function finishMonty(strategy){
+    if(roundFinished) return;
+    const closed = [...Array(doorCount).keys()].filter(i=>!openedDoors.includes(i));
+    let finalChoice=selectedDoor;
+    if(strategy==='switch'){
+      const others=closed.filter(i=>i!==selectedDoor);
+      finalChoice=others[randInt(others.length)];
+    }
+    roundFinished=true;
+    const win=finalChoice===prizeDoor;
+    if(strategy==='stay'){stayTrials++; if(win) stayWins++;}
+    else{switchTrials++; if(win) switchWins++;}
+    $$('.door').forEach((d,idx)=>{
+      if(!d.classList.contains('open')){
+        d.classList.add('open');
+        d.querySelector('.door-back').textContent=idx===prizeDoor?'🏎️':'🐐';
+      }
+    });
+    $('#montyStatus').innerHTML=
+      `${strategy==='stay'?'유지':'변경'} 전략을 선택했습니다. 최종 선택은 <b>${finalChoice+1}번</b>, `+
+      `정답은 <b>${prizeDoor+1}번</b>이므로 <b>${win?'성공!':'실패'}</b>`;
+    $('#stayBtn').disabled=true;
+    $('#switchBtn').disabled=true;
+    updateMontyStats();
+  }
+
+  function updateMontyStats(){
+    const sr=stayTrials?stayWins/stayTrials*100:0;
+    const cr=switchTrials?switchWins/switchTrials*100:0;
+    $('#stayRate').textContent=sr.toFixed(1)+'%';
+    $('#switchRate').textContent=cr.toFixed(1)+'%';
+    $('#stayCount').textContent=`${stayWins}승 / ${stayTrials}회`;
+    $('#switchCount').textContent=`${switchWins}승 / ${switchTrials}회`;
+  }
+
+  function simulateMonty(){
+    const r=Number($('#remainingDoors').value);
+    let sw=0, st=0, n=10000;
+    for(let t=0;t<n;t++){
+      const prize=randInt(doorCount);
+      const pick=randInt(doorCount);
+      if(pick===prize) st++;
+      let closed=[pick];
+      const available=[...Array(doorCount).keys()].filter(i=>i!==pick);
+      const prizeIncluded=prize!==pick;
+      if(prizeIncluded) closed.push(prize);
+      let fillers=available.filter(i=>i!==prize);
+      while(closed.length<r){
+        const idx=randInt(fillers.length);
+        closed.push(fillers.splice(idx,1)[0]);
+      }
+      const others=closed.filter(i=>i!==pick);
+      const switched=others[randInt(others.length)];
+      if(switched===prize) sw++;
+    }
+    stayTrials+=n; stayWins+=st;
+    switchTrials+=n; switchWins+=sw;
+    updateMontyStats();
+    $('#montyStatus').textContent=`자동 실험 ${n.toLocaleString()}회를 완료했습니다. 유지와 변경의 누적 승률을 비교해 보세요.`;
+  }
+
+  $('#doorCount').addEventListener('input',e=>{
+    doorCount=Number(e.target.value);
+    $('#doorCountLabel').textContent=doorCount+'개';
+    buildRemainingOptions();
+    newMontyRound();
+  });
+  $('#remainingDoors').addEventListener('change',()=>{updateProbability();newMontyRound();});
+  $('#hostOpenBtn').addEventListener('click',hostOpen);
+  $('#stayBtn').addEventListener('click',()=>finishMonty('stay'));
+  $('#switchBtn').addEventListener('click',()=>finishMonty('switch'));
+  $('#newRoundBtn').addEventListener('click',newMontyRound);
+  $('#simulateBtn').addEventListener('click',simulateMonty);
+  $('#resetStatsBtn').addEventListener('click',()=>{
+    stayWins=stayTrials=switchWins=switchTrials=0;
+    updateMontyStats();
+    $('#montyStatus').textContent='통계를 초기화했습니다.';
+  });
+
+  // ---------------- 5지선다 시험 전략 ----------------
+  const TOTAL_CHOICES = 5;
+  let examAnswer=0, ignored=[], reviewed=[], eliminatedExam=[], reviewedSurvivors=[], examFinished=false, finalExamPick=null;
+  let keepWins=0, keepTrials=0, changeWins=0, changeTrials=0;
+
+  const shuffle = arr => {
+    const a=[...arr];
+    for(let i=a.length-1;i>0;i--){const j=randInt(i+1);[a[i],a[j]]=[a[j],a[i]];}
+    return a;
+  };
+
+  function rebuildEliminateOptions(){
+    const n=Number($('#ignoredCount').value);
+    const reviewedCount=TOTAL_CHOICES-n;
+    const maxM=Math.max(0,reviewedCount-1);
+    const select=$('#eliminateCount');
+    const old=Math.min(Number(select.value||1),maxM);
+    select.innerHTML='';
+    for(let m=0;m<=maxM;m++){
+      const o=document.createElement('option');
+      o.value=m; o.textContent=m+'개';
+      if(m===old)o.selected=true;
+      select.appendChild(o);
+    }
+    updateExamTheory();
+  }
+
+  function examTheory(){
+    const n=Number($('#ignoredCount').value);
+    const m=Number($('#eliminateCount').value);
+    const reviewedCount=TOTAL_CHOICES-n;
+    const survivors=reviewedCount-m;
+    // 정답은 5개 중 균등하고, 검토 집합에 있을 때는 오답만 제거된다고 가정
+    const keep=survivors>0 ? (reviewedCount/TOTAL_CHOICES)/survivors : 0;
+    const change=n>0 ? (n/TOTAL_CHOICES)/n : 0;
+    return {n,m,reviewedCount,survivors,keep,change};
+  }
+
+  function updateExamTheory(){
+    const t=examTheory();
+    const verdict=t.keep>t.change?'검토 후 남은 보기를 유지하는 편이 유리합니다.':t.keep<t.change?'처음 배제한 보기로 옮기는 편이 유리합니다.':'두 전략의 확률이 같습니다.';
+    $('#examProbabilityBox').innerHTML=
+      `처음부터 배제: <b>${t.n}개</b> · 실제 검토: <b>${t.reviewedCount}개</b><br>`+
+      `오답 ${t.m}개 제거 후 검토 보기 생존: <b>${t.survivors}개</b><br>`+
+      `생존한 검토 보기 중 하나 선택: <b>${(t.keep*100).toFixed(1)}%</b><br>`+
+      `처음 배제한 보기 중 하나 선택: <b>${(t.change*100).toFixed(1)}%</b><br>`+
+      `<strong>${verdict}</strong>`;
+  }
+
+  function renderExamChoices(){
+    $('#choices').innerHTML='';
+    for(let i=0;i<TOTAL_CHOICES;i++){
+      const b=document.createElement('button');
+      b.className='choice';
+      b.innerHTML=`${i+1}번<small>${ignored.includes(i)?'처음부터 배제':'검토한 보기'}</small>`;
+      if(ignored.includes(i)) b.classList.add('ignored'); else b.classList.add('readable');
+      if(eliminatedExam.includes(i)) b.classList.add('eliminated');
+      if(examFinished && i===examAnswer) b.classList.add('correct');
+      if(examFinished && i===finalExamPick) b.classList.add('final-pick');
+      $('#choices').appendChild(b);
+    }
+  }
+
+  function newExam(){
+    const n=Number($('#ignoredCount').value);
+    examAnswer=randInt(TOTAL_CHOICES);
+    ignored=shuffle([...Array(TOTAL_CHOICES).keys()]).slice(0,n);
+    reviewed=[...Array(TOTAL_CHOICES).keys()].filter(i=>!ignored.includes(i));
+    eliminatedExam=[];
+    reviewedSurvivors=[...reviewed];
+    finalExamPick=null;
+    examFinished=false;
+    renderExamChoices();
+    const m=Number($('#eliminateCount').value);
+    $('#examStatus').innerHTML=`보기 ${n}개를 처음부터 배제했습니다. 남은 <b>${reviewed.length}개</b>를 검토해 오답 ${m}개를 지워 보세요.`;
+    $('#eliminateBtn').disabled=false;
+    $('#keepOneBtn').disabled=true;
+    $('#changeBtn').disabled=true;
+  }
+
+  function eliminateWrong(){
+    const m=Number($('#eliminateCount').value);
+    const wrongReviewed=reviewed.filter(i=>i!==examAnswer);
+    eliminatedExam=shuffle(wrongReviewed).slice(0,m);
+    reviewedSurvivors=reviewed.filter(i=>!eliminatedExam.includes(i));
+    renderExamChoices();
+    $('#examStatus').innerHTML=`검토한 보기에서 오답 ${m}개를 제거했습니다. 검토 후 남은 보기는 <b>${reviewedSurvivors.map(i=>i+1).join(', ')||'없음'}번</b>입니다.<br>이 중 하나를 유지할까요, 아니면 처음 배제한 보기 ${ignored.map(i=>i+1).join(', ')}번 중 하나를 새로 고를까요?`;
+    $('#eliminateBtn').disabled=true;
+    $('#keepOneBtn').disabled=reviewedSurvivors.length===0;
+    $('#changeBtn').disabled=ignored.length===0;
+  }
+
+  function finishExam(strategy){
+    if(examFinished) return;
+    if(strategy==='keep') finalExamPick=reviewedSurvivors[randInt(reviewedSurvivors.length)];
+    else finalExamPick=ignored[randInt(ignored.length)];
+    examFinished=true;
+    const win=finalExamPick===examAnswer;
+    if(strategy==='keep'){keepTrials++;if(win)keepWins++;}
+    else{changeTrials++;if(win)changeWins++;}
+    renderExamChoices();
+    $('#examStatus').innerHTML=`${strategy==='keep'?'검토 보기 유지':'배제 보기 선택'} 전략: 최종 답 <b>${finalExamPick+1}번</b>, 실제 정답 <b>${examAnswer+1}번</b> → <b>${win?'정답!':'오답'}</b>`;
+    $('#keepOneBtn').disabled=true;
+    $('#changeBtn').disabled=true;
+    updateExamStats();
+  }
+
+  function updateExamStats(){
+    const kp=keepTrials?keepWins/keepTrials*100:0;
+    const cp=changeTrials?changeWins/changeTrials*100:0;
+    $('#keepBar').style.width=kp+'%'; $('#changeBar').style.width=cp+'%';
+    $('#keepPct').textContent=kp.toFixed(1)+'%'; $('#changePct').textContent=cp.toFixed(1)+'%';
+  }
+
+  function simulateExam(){
+    const trials=Number($('#examTrials').value);
+    const t=examTheory();
+    let kw=0,cw=0;
+    for(let z=0;z<trials;z++){
+      const ans=randInt(TOTAL_CHOICES);
+      const ign=shuffle([...Array(TOTAL_CHOICES).keys()]).slice(0,t.n);
+      const rev=[...Array(TOTAL_CHOICES).keys()].filter(i=>!ign.includes(i));
+      const wrong=shuffle(rev.filter(i=>i!==ans));
+      const elim=wrong.slice(0,t.m);
+      const surv=rev.filter(i=>!elim.includes(i));
+      const kept=surv[randInt(surv.length)];
+      const changed=ign[randInt(ign.length)];
+      if(kept===ans)kw++;
+      if(changed===ans)cw++;
+    }
+    keepTrials+=trials; keepWins+=kw; changeTrials+=trials; changeWins+=cw;
+    updateExamStats();
+    $('#examStatus').textContent=`자동 실험 ${trials.toLocaleString()}회를 완료했습니다. 위의 이론 확률과 누적 승률을 비교하세요.`;
+  }
+
+  $('#ignoredCount').addEventListener('change',()=>{rebuildEliminateOptions();newExam();});
+  $('#eliminateCount').addEventListener('change',()=>{updateExamTheory();newExam();});
+  $('#examNewBtn').addEventListener('click',newExam);
+  $('#eliminateBtn').addEventListener('click',eliminateWrong);
+  $('#keepOneBtn').addEventListener('click',()=>finishExam('keep'));
+  $('#changeBtn').addEventListener('click',()=>finishExam('change'));
+  $('#examSimBtn').addEventListener('click',simulateExam);
+  $('#examResetBtn').addEventListener('click',()=>{
+    keepWins=keepTrials=changeWins=changeTrials=0; updateExamStats();
+    $('#examStatus').textContent='실험 통계를 초기화했습니다.';
+  });
+
+  buildRemainingOptions();
+  newMontyRound();
+  rebuildEliminateOptions();
+  newExam();
+</script>
+</body>
+</html>
