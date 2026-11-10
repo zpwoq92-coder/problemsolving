@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<title>색깔돌 퍼즐</title>
+<style>
+  :root {
+    --wrks-viz-font-family: Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --wrks-viz-primary: #2563eb;
+    --wrks-viz-bg: #ffffff;
+    --wrks-viz-fg: #111827;
+    --wrks-viz-border: #d1d5db;
+    --wrks-viz-radius: 8px;
+    --wrks-viz-space-1: 4px;
+    --wrks-viz-space-2: 8px;
+    --wrks-viz-space-3: 12px;
+    --wrks-viz-space-4: 16px;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--wrks-viz-bg);
+    color: var(--wrks-viz-fg);
+    font-family: var(--wrks-viz-font-family);
+  }
+  .wrap {
+    padding: var(--wrks-viz-space-4);
+    max-width: 720px;
+    margin: 0 auto;
+  }
+  h1 {
+    font-size: 16px;
+    font-weight: 700;
+    margin: 0 0 var(--wrks-viz-space-3) 0;
+  }
+  .panels {
+    display: flex;
+    gap: var(--wrks-viz-space-4);
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .panel {
+    border: 1px solid var(--wrks-viz-border);
+    border-radius: var(--wrks-viz-radius);
+    padding: var(--wrks-viz-space-3);
+    background: var(--wrks-viz-bg);
+  }
+  .panel-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #4b5563;
+    margin-bottom: var(--wrks-viz-space-2);
+    text-align: left;
+  }
+  .board {
+    display: grid;
+    grid-template-columns: repeat(3, 78px);
+    grid-template-rows: repeat(3, 78px);
+    gap: 6px;
+    touch-action: none;
+  }
+  .cell {
+    width: 78px;
+    height: 78px;
+    border-radius: 6px;
+    background: #f3f4f6;
+    border: 1px solid var(--wrks-viz-border);
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .cell.static {
+    background: #f9fafb;
+  }
+  .stone {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    border: 1px solid rgba(0,0,0,0.15);
+    touch-action: none;
+    cursor: grab;
+  }
+  .stone.movable {
+    box-shadow: none;
+    outline: 2px solid var(--wrks-viz-primary);
+    outline-offset: 2px;
+  }
+  .stone.static-stone {
+    cursor: default;
+  }
+  .stone.ghost {
+    cursor: grabbing;
+  }
+  .color-G { background: #16a34a; }
+  .color-B { background: #2563eb; }
+  .color-Y { background: #eab308; }
+  .color-R { background: #dc2626; }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: var(--wrks-viz-space-3);
+    margin-top: var(--wrks-viz-space-4);
+    flex-wrap: wrap;
+  }
+  button {
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 14px;
+    border-radius: var(--wrks-viz-radius);
+    border: 1px solid var(--wrks-viz-border);
+    background: var(--wrks-viz-primary);
+    color: #ffffff;
+    cursor: pointer;
+  }
+  button:active { opacity: 0.9; }
+  .stat {
+    font-size: 13px;
+    color: #374151;
+  }
+  .status {
+    font-size: 13px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--wrks-viz-border);
+    color: #374151;
+  }
+  .status.success {
+    color: #166534;
+    border-color: #16a34a;
+    background: #f0fdf4;
+  }
+  .hint {
+    font-size: 12px;
+    color: #6b7280;
+    margin-top: var(--wrks-viz-space-2);
+  }
+  @media (max-width: 520px) {
+    .panels { flex-direction: column; align-items: center; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>색깔돌 퍼즐 (3x3)</h1>
+  <div class="panels">
+    <div class="panel">
+      <div class="panel-title">목표 배치 (문제)</div>
+      <div class="board" id="targetBoard"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">현재 보드 (드래그 또는 탭으로 이동)</div>
+      <div class="board" id="playBoard"></div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button id="newBtn">새 문제</button>
+    <div class="stat">이동 횟수: <span id="moveCount">0</span></div>
+    <div class="status" id="status">진행 중</div>
+  </div>
+  <div class="hint">빈칸과 상하좌우로 맞닿은 돌만 파란 테두리로 표시됩니다. 그 돌을 마우스로 끌거나 손가락으로 터치해서 빈칸 위로 옮기세요. 짧게 탭만 해도 바로 이동합니다.</div>
+</div>
+
+<script>
+  var N = 3;
+  var SIZE = N * N;
+  var COLORS = ['G','G','B','B','Y','Y','R','R'];
+
+  var target = [];
+  var board = [];
+  var moveCount = 0;
+
+  function shuffle(arr) {
+    var a = arr.slice();
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = a[i]; a[i] = a[j]; a[j] = tmp;
+    }
+    return a;
+  }
+
+  function makeTarget() {
+    var cells = COLORS.slice();
+    cells.push(null);
+    return shuffle(cells);
+  }
+
+  function neighbors(idx) {
+    var r = Math.floor(idx / N), c = idx % N;
+    var out = [];
+    if (r > 0) out.push(idx - N);
+    if (r < N - 1) out.push(idx + N);
+    if (c > 0) out.push(idx - 1);
+    if (c < N - 1) out.push(idx + 1);
+    return out;
+  }
+
+  function isAdjacent(a, b) {
+    var ra = Math.floor(a / N), ca = a % N;
+    var rb = Math.floor(b / N), cb = b % N;
+    return (Math.abs(ra - rb) + Math.abs(ca - cb)) === 1;
+  }
+
+  function scramble(arr, steps) {
+    var a = arr.slice();
+    var emptyIdx = a.indexOf(null);
+    var lastIdx = -1;
+    for (var i = 0; i < steps; i++) {
+      var opts = neighbors(emptyIdx).filter(function (n) { return n !== lastIdx; });
+      var n = opts[Math.floor(Math.random() * opts.length)];
+      a[emptyIdx] = a[n];
+      a[n] = null;
+      lastIdx = emptyIdx;
+      emptyIdx = n;
+    }
+    return a;
+  }
+
+  function arraysEqual(a, b) {
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] !== b[i]) return false;
+    }
+    return true;
+  }
+
+  var dragState = null;
+
+  function onPointerDown(e, idx) {
+    e.preventDefault();
+    var emptyIdx = board.indexOf(null);
+    if (!isAdjacent(idx, emptyIdx)) return;
+
+    var stoneEl = e.currentTarget;
+    var rect = stoneEl.getBoundingClientRect();
+
+    dragState = {
+      idx: idx,
+      emptyIdx: emptyIdx,
+      startX: e.clientX,
+      startY: e.clientY,
+      offsetX: e.clientX - rect.left,
+      offsetY: e.clientY - rect.top,
+      moved: false,
+      origEl: stoneEl,
+      ghost: null
+    };
+
+    try { stoneEl.setPointerCapture(e.pointerId); } catch (err) {}
+    stoneEl.style.opacity = '0.3';
+
+    var ghost = stoneEl.cloneNode(true);
+    ghost.classList.add('ghost');
+    ghost.style.position = 'fixed';
+    ghost.style.left = rect.left + 'px';
+    ghost.style.top = rect.top + 'px';
+    ghost.style.width = rect.width + 'px';
+    ghost.style.height = rect.height + 'px';
+    ghost.style.margin = '0';
+    ghost.style.pointerEvents = 'none';
+    ghost.style.zIndex = '1000';
+    ghost.style.opacity = '0.95';
+    document.body.appendChild(ghost);
+    dragState.ghost = ghost;
+
+    stoneEl.addEventListener('pointermove', onPointerMove);
+    stoneEl.addEventListener('pointerup', onPointerUp);
+    stoneEl.addEventListener('pointercancel', onPointerUp);
+  }
+
+  function onPointerMove(e) {
+    if (!dragState) return;
+    var dx = e.clientX - dragState.startX;
+    var dy = e.clientY - dragState.startY;
+    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) dragState.moved = true;
+    dragState.ghost.style.left = (e.clientX - dragState.offsetX) + 'px';
+    dragState.ghost.style.top = (e.clientY - dragState.offsetY) + 'px';
+  }
+
+  function getCellIndexFromPoint(x, y) {
+    var el = document.elementFromPoint(x, y);
+    if (!el) return -1;
+    var cellEl = el.closest('.cell');
+    if (!cellEl) return -1;
+    return parseInt(cellEl.getAttribute('data-index'), 10);
+  }
+
+  function onPointerUp(e) {
+    if (!dragState) return;
+    var idx = dragState.idx;
+    var emptyIdx = dragState.emptyIdx;
+    var origEl = dragState.origEl;
+    var ghost = dragState.ghost;
+    var moved = dragState.moved;
+
+    origEl.removeEventListener('pointermove', onPointerMove);
+    origEl.removeEventListener('pointerup', onPointerUp);
+    origEl.removeEventListener('pointercancel', onPointerUp);
+    ghost.remove();
+    origEl.style.opacity = '';
+
+    var targetIdx = moved ? getCellIndexFromPoint(e.clientX, e.clientY) : emptyIdx;
+
+    dragState = null;
+
+    if (targetIdx === emptyIdx) {
+      commitMove(idx, emptyIdx);
+    }
+  }
+
+  function commitMove(idx, emptyIdx) {
+    board[emptyIdx] = board[idx];
+    board[idx] = null;
+    moveCount++;
+    renderPlayBoard();
+    updateStatus();
+  }
+
+  function renderBoard(container, arr, interactive) {
+    container.innerHTML = '';
+    var emptyIdx = interactive ? arr.indexOf(null) : -1;
+    for (var i = 0; i < SIZE; i++) {
+      var cell = document.createElement('div');
+      cell.className = 'cell' + (interactive ? '' : ' static');
+      cell.setAttribute('data-index', i);
+
+      var val = arr[i];
+      if (val !== null) {
+        var stone = document.createElement('div');
+        stone.className = 'stone color-' + val + (interactive ? '' : ' static-stone');
+        if (interactive && isAdjacent(i, emptyIdx)) {
+          stone.classList.add('movable');
+          (function (index) {
+            stone.addEventListener('pointerdown', function (e) { onPointerDown(e, index); });
+          })(i);
+        }
+        cell.appendChild(stone);
+      }
+      container.appendChild(cell);
+    }
+  }
+
+  function renderTargetBoard() {
+    renderBoard(document.getElementById('targetBoard'), target, false);
+  }
+
+  function renderPlayBoard() {
+    renderBoard(document.getElementById('playBoard'), board, true);
+  }
+
+  function updateStatus() {
+    document.getElementById('moveCount').textContent = moveCount;
+    var statusEl = document.getElementById('status');
+    if (arraysEqual(board, target)) {
+      statusEl.textContent = '성공!';
+      statusEl.classList.add('success');
+    } else {
+      statusEl.textContent = '진행 중';
+      statusEl.classList.remove('success');
+    }
+  }
+
+  function newPuzzle() {
+    target = makeTarget();
+    board = scramble(target, 90);
+    moveCount = 0;
+    renderTargetBoard();
+    renderPlayBoard();
+    updateStatus();
+    notifyResize();
+  }
+
+  function notifyResize() {
+    try {
+      window.parent.postMessage({ type: 'wrks:viz:resize', height: document.documentElement.scrollHeight }, '*');
+    } catch (err) {}
+  }
+
+  document.getElementById('newBtn').addEventListener('click', newPuzzle);
+
+  newPuzzle();
+  window.addEventListener('load', notifyResize);
+  window.addEventListener('resize', notifyResize);
+</script>
+</body>
+</html>
